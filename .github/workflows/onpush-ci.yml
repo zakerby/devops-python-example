@@ -1,0 +1,90 @@
+name: Running CI
+
+on:
+  push:
+    branches:
+      - '*'
+      - '!v*'
+
+jobs:
+  build-ci:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [ 3.6, 3.7, 3.8 ]
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Setting Up Environment Variables
+      run: |
+        sed -i "s/\(DB_HOST=\)".*"/\1\"${{ secrets.DB_HOST }}\"/g" envvars
+        sed -i "s/\(DB_NAME=\)".*"/\1\"${{ secrets.DB_NAME }}\"/g" envvars
+        sed -i "s/\(DB_SCHEMA=\)".*"/\1\"${{ secrets.DB_SCHEMA }}\"/g" envvars
+        sed -i "s/\(DB_USER=\)".*"/\1\"${{ secrets.DB_USER }}\"/g" envvars
+        sed -i "s/\(DB_PASSWORD=\)".*"/\1\"${{ secrets.DB_PASSWORD }}\"/g" envvars
+        sed -i "s/\(DB_PORT=\)".*"/\1\"${{ secrets.DB_PORT }}\"/g" envvars
+
+    - name: Initialize Database
+      run: |
+        ./init-db.sh
+      env:
+        POSTGRES_HOST: "127.0.0.1"
+        POSTGRES_DB: "postgres"
+        POSTGRES_USER: "postgres"
+        POSTGRES_PASSWORD: "postgres"
+
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Running static analysis
+      run: |
+        flake8 --config=.flake8 --count --statistics --show-source --exit-zero pylib/
+
+    - name: Running unit test
+      run: |
+        python -m pytest
+
+    - name: Running code coverage
+      if: matrix.python-version == '3.6'
+      run: |
+        python -m pytest --cov-report html --cov-report term --cov=app app/tests/
+
+    - uses: actions/upload-artifact@v2
+      if: matrix.python-version == '3.6'
+      with:
+        name: coverage-artifact
+        path: htmlcov/
+
+    # Notify engineers via slack
+    - name: Notify slack
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_OPEN_SOURCE }}
+        SLACK_USERNAME: "Open Source Activities"
+        SLACK_TITLE: "Build CI Success!"
+        SLACK_MESSAGE: "\n\n === ${{ github.repository }} (${{ steps.branch_name.outputs.SOURCE_TAG }}) ==="
+        SLACK_FOOTER: "Powered by Element Creative Studio"
+        SLACK_ICON: "https://cdn.elementcreativestudio.com/github.png"

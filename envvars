@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Postgre super admin credential (for local development only)
+export POSTGRES_HOST="127.0.0.1"
+export POSTGRES_USER="postgres"
+export POSTGRES_DB="postgres"
+export POSTGRES_PASSWORD="postgres"
+
+# Environment
+export ENVIRONMENT="local"
+
+# Postgre app db credential
+export DB_HOST="127.0.0.1"
+export DB_NAME="app"
+export DB_SCHEMA="app"
+export DB_USER="app"
+export DB_PASSWORD="app"
+export DB_PORT="5432"
+
+# Replacing database information in init-db.sh
+sed -i "s/DB_NAME/$DB_NAME/g" init-db.sh
+sed -i "s/DB_SCHEMA/$DB_SCHEMA/g" init-db.sh
+sed -i "s/DB_USER/$DB_USER/g" init-db.sh
+sed -i "s/DB_PASSWORD/$DB_PASSWORD/g" init-db.sh
